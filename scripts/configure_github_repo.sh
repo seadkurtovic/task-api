@@ -17,20 +17,39 @@ configure_environment() {
   local environment_name="$1"
   local wait_seconds="$2"
 
-  gh api \
+  # Some GitHub plans (especially private repos on Free) do not support
+  # deployment protection rules (wait timers/reviewers). Try full settings
+  # first, then gracefully fall back to creating a basic environment.
+  if gh api \
     --method PUT \
     -H "Accept: application/vnd.github+json" \
     "repos/${REPO}/environments/${environment_name}" \
-    --input - <<JSON
+    --input - >/dev/null <<JSON
 {
   "wait_timer": ${wait_seconds},
-  "reviewers": [],
   "deployment_branch_policy": {
     "protected_branches": true,
     "custom_branch_policies": false
   }
 }
 JSON
+  then
+    echo "Configured environment '${environment_name}' with wait timer ${wait_seconds}s."
+    return 0
+  fi
+
+  echo "Warning: advanced environment protection is not available for '${environment_name}'. Falling back to basic environment."
+
+  if gh api \
+    --method PUT \
+    -H "Accept: application/vnd.github+json" \
+    "repos/${REPO}/environments/${environment_name}" >/dev/null
+  then
+    echo "Configured basic environment '${environment_name}'."
+    return 0
+  fi
+
+  echo "Warning: unable to configure environment '${environment_name}'. Continuing."
 }
 
 configure_branch_protection() {
