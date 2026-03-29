@@ -1,0 +1,32 @@
+name: cd-simulated
+
+on:
+  push:
+    branches: [dev, test, main]
+
+jobs:
+  deploy:
+    name: simulated-deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || github.ref_name == 'test' && 'staging' || 'development' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create deployment metadata artifact
+        run: |
+          mkdir -p deployment-info
+          {
+            echo "environment=${{ github.ref_name == 'main' && 'production' || github.ref_name == 'test' && 'staging' || 'development' }}"
+            echo "branch=${{ github.ref_name }}"
+            echo "commit_sha=${{ github.sha }}"
+            echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > deployment-info/metadata.txt
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulated-deploy-${{ github.ref_name }}-${{ github.run_number }}
+          path: deployment-info/metadata.txt
+          if-no-files-found: error
